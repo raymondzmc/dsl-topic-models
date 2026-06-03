@@ -179,13 +179,23 @@ internal module/class layout is reorganized.
 ## 6. Citation
 
 ```bibtex
-@inproceedings{li2026dsltopic,
-  title     = {{DSL-Topic}: Improving Topic Modeling by Distilling Soft Labels from Language Models},
-  author    = {Li, Raymond and Abaskohi, Amirhossein and Li, Chuyuan and Murray, Gabriel and Carenini, Giuseppe},
-  booktitle = {Proceedings of the 43rd International Conference on Machine Learning (ICML)},
-  year      = {2026}
+@InProceedings{li2026dsltopic,
+  title = 	 {{DSL-Topic}: Improving Topic Modeling by Distilling Soft Labels from Language Models},
+  author =       {Li, Raymond and Abaskohi, Amirhossein and Li, Chuyuan and Murray, Gabriel and Carenini, Giuseppe},
+  booktitle = 	 {Proceedings of the 43rd International Conference on Machine Learning},
+  pages = 	 {to appear},
+  year = 	 {2026},
+  editor = 	 {to be announced},
+  volume = 	 {to be announced},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {Jul},
+  publisher =    {PMLR},
+  url = 	 {https://proceedings.mlr.press/},
 }
 ```
+
+_Accepted at ICML 2026. The PMLR volume, page range, editors, and final PDF/URL will be
+filled in once the proceedings are published._
 
 ## 7. Acknowledgements
 
