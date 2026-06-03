@@ -1,0 +1,10 @@
+# Latent Dirichlet Allocation (LDA)
+# Uses default hyperparameters from OCTIS package
+
+model: lda
+
+# LDA uses package defaults for:
+# - alpha, beta priors
+# - iterations
+# - random_state (set by seed)
+

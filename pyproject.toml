@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsl-topic"
+version = "1.0.0"
+description = "DSL-Topic: Improving Topic Modeling by Distilling Soft Labels from Language Models (ICML 2026)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Raymond Li", email = "raymondl@cs.ubc.ca" },
+    { name = "Amirhossein Abaskohi" },
+    { name = "Chuyuan Li" },
+    { name = "Gabriel Murray" },
+    { name = "Giuseppe Carenini" },
+]
+keywords = ["topic modeling", "language models", "knowledge distillation", "neural topic models"]
+
+dependencies = [
+    # Core deep learning / data
+    "torch",
+    "torchvision",  # transitive dep of the vendored TopMost data loader
+    "transformers>=5.3.0",
+    "datasets==3.0.2",
+    "sentence-transformers>=5.0.0",
+    "sentencepiece==0.2.0",
+    "huggingface_hub",
+    "pyarrow>=14.0.0",
+    "numpy",
+    "scipy",
+    "pandas",
+    "scikit-learn",
+    # Topic models / baselines
+    "gensim==4.3.3",
+    "bertopic==0.17.0",
+    "topmost==1.0.2",
+    # Evaluation
+    "evaluate==0.4.3",
+    "rouge_score==0.1.2",
+    "openai==1.78.0",
+    # Utilities
+    "jinja2",
+    "spacy==3.7.2",
+    "pydantic-settings==2.7.1",
+    "wandb>=0.19.0",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/raymondzmc/dsl-topic-models"
+Paper = "https://github.com/raymondzmc/dsl-topic-models"
+
+[project.scripts]
+dsl-process = "dsl_topic.cli.process_dataset:main"
+dsl-train = "dsl_topic.cli.train:main"
+dsl-retrieval = "dsl_topic.cli.retrieval:main"
+dsl-summarize = "dsl_topic.cli.summarize:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Ship the Jinja prompt/instruction templates inside the package
+dsl_topic = ["prompts/templates/**/*.jinja"]

@@ -1,0 +1,16 @@
+# ProdLDA - Neural Topic Model with Product of Experts
+# Based on OCTIS implementation
+
+model: prodlda
+
+# Training hyperparameters
+num_epochs: 100
+batch_size: 64
+lr: 2e-3
+
+# Architecture
+hidden_size: 200
+num_hidden_layers: 2
+activation: softplus
+solver: adam
+

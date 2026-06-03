@@ -1,0 +1,11 @@
+# Embedded Topic Model (ETM)
+# Uses Word2Vec embeddings for topic-word distributions
+
+model: etm
+
+# ETM uses package defaults except:
+# - train_embeddings: false (use pretrained Word2Vec)
+# - embeddings_path: word2vec-google-news-300.kv
+# - embeddings_type: word2vec
+# - binary_embeddings: true
+

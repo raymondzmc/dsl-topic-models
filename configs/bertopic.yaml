@@ -1,0 +1,13 @@
+# BERTopic - BERT-based Topic Model
+# Uses sentence embeddings and clustering
+
+model: bertopic
+
+# BERTopic uses package defaults except:
+# - language: english
+# - calculate_probabilities: true
+# - verbose: true
+# - low_memory: false
+
+# Note: nr_topics is set to num_topics + 1 to account for outlier topic (-1)
+

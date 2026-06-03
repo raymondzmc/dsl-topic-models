@@ -1,0 +1,11 @@
+# FASTopic - Fast Adaptive Topic Model
+# Uses neural networks with efficient training
+
+model: fastopic
+
+# FASTopic specific settings
+# - low_memory: true
+# - low_memory_batch_size: 262144
+
+# Uses package defaults for other hyperparameters
+
