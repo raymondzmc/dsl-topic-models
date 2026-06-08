@@ -30,13 +30,11 @@ def prepare_octis_dataset(
     Returns:
         Tuple of (octis_dataset, filtered_corpus, filtered_labels) where empty documents are removed.
     """
-    from dsl_topic.data.loaders import prepare_octis_files
-    
+    from dsl_topic.data.loaders import prepare_octis_files, filter_empty_documents
+
     # Filter out empty documents (OCTIS cannot handle them)
-    non_empty_indices = [i for i, doc in enumerate(bow_corpus) if len(doc) > 0]
-    filtered_corpus = [bow_corpus[i] for i in non_empty_indices]
-    filtered_labels = [labels[i] for i in non_empty_indices] if labels is not None else None
-    
+    filtered_corpus, filtered_labels = filter_empty_documents(bow_corpus, labels)
+
     prepare_octis_files(data_path, filtered_corpus, vocab, filtered_labels)
     dataset = OCTISDataset()
     dataset.load_custom_dataset_from_folder(data_path)

@@ -2,5 +2,6 @@
 
 - ``dsl/``       : the authors' DSL models (ProdLDA / ECRTM / FASTopic / ETM backbones
                   trained with the soft-label distillation objective).
-- ``_vendored/`` : third-party baseline libraries (OCTIS, TopMost, FASTopic), kept intact.
+- ``baselines/`` : third-party baselines (OCTIS, TopMost, FASTopic), adapted to the
+                  local namespace and trimmed to what the paper uses.
 """

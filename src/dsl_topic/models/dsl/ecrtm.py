@@ -1,16 +1,18 @@
-"""Generative ECRTM: ECRTM variant that uses LLM hidden states as encoder input
+"""DSL ECRTM: ECRTM variant that uses LLM hidden states as encoder input
 and KL divergence against LLM next-token logits as the reconstruction target.
 
 Keeps ECRTM's word/topic embeddings and ECR regularization intact, only
 changes the encoder input dimension and reconstruction loss."""
 
-import math
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
-from dsl_topic.models._vendored.topmost.ECRTM.ECR import ECR
+from dsl_topic.models.baselines.topmost.ECRTM.ECR import ECR
+from dsl_topic.models.dsl._objective import (
+    topk_target, distillation_loss, extract_topics, theta_inference,
+)
 
 
 class DSLECRTMModel(nn.Module):
@@ -119,20 +121,13 @@ class DSLECRTMModel(nn.Module):
         student_probs = F.softmax(self.decoder_bn(torch.matmul(theta, beta)), dim=-1)
 
         # Teacher-distillation reconstruction loss (replaces BoW NLL)
-        k = math.ceil(self.sparsity_ratio * teacher_logits.size(1))
-        topk_indices = torch.topk(teacher_logits, k=k, dim=1)[1]
-        mask = torch.zeros_like(teacher_logits)
-        mask.scatter_(1, topk_indices, 1.0)
-        masked_logits = teacher_logits * mask
-
-        if self.loss_type == 'CE':
-            recon_loss = -torch.sum(masked_logits * torch.log(student_probs + 1e-10), dim=1).mean()
-        elif self.loss_type == 'KL':
-            teacher_probs = torch.softmax(masked_logits / self.temperature, dim=-1).clamp_min(1e-9)
-            student_probs = student_probs.clamp_min(1e-9)
-            recon_loss = torch.sum(teacher_probs * torch.log(teacher_probs / student_probs), dim=1).mean()
-        else:
-            raise ValueError(f"Invalid loss type: {self.loss_type}")
+        masked_logits = topk_target(
+            teacher_logits, sparsity_ratio=self.sparsity_ratio, mask_mode="multiplicative",
+        )
+        recon_loss = distillation_loss(
+            masked_logits, student_probs, loss_type=self.loss_type,
+            temperature=self.temperature, ce_softmax_teacher=False,
+        ).mean()
 
         loss_TM = self.loss_weight * recon_loss + loss_KL
         loss_ECR = self.get_loss_ECR()
@@ -210,34 +205,15 @@ class DSLECRTM:
 
     def get_info(self, idx2token=None):
         self.model.eval()
-        info = {}
         with torch.no_grad():
             beta = self.model.get_beta().detach().cpu().numpy()
-
-        topics = []
-        for k in range(self.num_topics):
-            if np.isnan(beta[k]).any():
-                topics = None
-                break
-            top_indices = beta[k].argsort()[-self.top_words:][::-1]
-            if idx2token is not None:
-                topics.append([idx2token[i] for i in top_indices])
-            elif self.vocab is not None:
-                topics.append([self.vocab[i] for i in top_indices])
-            else:
-                topics.append(list(top_indices))
-
-        info['topic-word-matrix'] = beta
-        info['topics'] = topics
-        return info
+        return {
+            'topic-word-matrix': beta,
+            'topics': extract_topics(beta, self.top_words, idx2token=idx2token, vocab=self.vocab),
+        }
 
     def get_theta(self, ctm_dataset):
-        loader = DataLoader(ctm_dataset, batch_size=self.batch_size, shuffle=False)
-        all_theta = []
-        self.model.eval()
-        with torch.no_grad():
-            for batch in loader:
-                x = batch['x_embeddings'].to(self.device)
-                theta = self.model.get_theta(x)
-                all_theta.append(theta.cpu().numpy())
-        return np.concatenate(all_theta, axis=0)
+        return theta_inference(
+            self.model, ctm_dataset, device=self.device, batch_size=self.batch_size,
+            theta_fn=lambda x: self.model.get_theta(x),
+        )

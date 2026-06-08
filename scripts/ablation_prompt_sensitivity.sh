@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Ablation: instruction-prompt sensitivity (paper "Instruction Prompt Sensitivity" + appendix).
 # Re-process 20Newsgroups/ERNIE with 5 rephrased instruction templates, then train
-# {generative, zeroshot, prodlda, fastopic} at K=50. Results go to results/prompt_<variant>/.
+# {dsl, zeroshot, prodlda, fastopic} at K=50. Results go to results/prompt_<variant>/.
 cd "$(dirname "$0")/.." && source scripts/common.sh
 
 lm="ERNIE-4.5-0.3B-PT"
 VARIANTS=(variant_1 variant_2 variant_3 variant_4 variant_5)
-MODELS=(generative zeroshot prodlda fastopic)
+MODELS=(dsl zeroshot prodlda fastopic)
 
 for v in "${VARIANTS[@]}"; do
   save="20_newsgroups_${lm}_vocab_2000_last_${v}"

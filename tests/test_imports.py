@@ -15,12 +15,13 @@ CORE_MODULES = [
     "dsl_topic.models.dsl.etm",
     "dsl_topic.models.dsl.ecrtm",
     "dsl_topic.models.dsl.fastopic",
-    "dsl_topic.models._vendored.fastopic",
-    "dsl_topic.models._vendored.octis.CTM",
-    "dsl_topic.models._vendored.octis.ETM",
-    "dsl_topic.models._vendored.octis.LDA",
-    "dsl_topic.models._vendored.octis.ProdLDA",
-    "dsl_topic.models._vendored.topmost.ECRTM.ECRTM",
+    "dsl_topic.models.dsl._objective",
+    "dsl_topic.models.baselines.fastopic",
+    "dsl_topic.models.baselines.octis.CTM",
+    "dsl_topic.models.baselines.octis.ETM",
+    "dsl_topic.models.baselines.octis.LDA",
+    "dsl_topic.models.baselines.octis.ProdLDA",
+    "dsl_topic.models.baselines.topmost.ECRTM.ECRTM",
     "dsl_topic.data.loaders",
     "dsl_topic.data.ctm_dataset",
     "dsl_topic.data.octis_dataset",
@@ -38,8 +39,13 @@ CLI_MODULES = [
     "dsl_topic.cli.summarize",
 ]
 
+HELPER_MODULES = [
+    "dsl_topic.cli._io",
+    "dsl_topic.cli._model_builders",
+]
 
-@pytest.mark.parametrize("module", CORE_MODULES + CLI_MODULES)
+
+@pytest.mark.parametrize("module", CORE_MODULES + CLI_MODULES + HELPER_MODULES)
 def test_module_imports(module):
     importlib.import_module(module)
 

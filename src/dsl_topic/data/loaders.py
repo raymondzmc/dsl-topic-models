@@ -23,7 +23,7 @@ from dsl_topic.paths import PROCESSED_DATA_DIR
 @dataclass
 class TrainingData:
     """Container for training data."""
-    processed_dataset: Optional[dict]  # For generative models (embeddings + logits)
+    processed_dataset: Optional[dict]  # For dsl models (embeddings + logits)
     vocab: list[str]
     bow_corpus: list[list[str]]
     labels: Optional[list]
@@ -92,20 +92,29 @@ def get_local_dataset(dataset_path: str) -> Dataset:
 
 def load_or_download_dataset(
     repo_id: str,
-    force_download: bool = False
+    force_download: bool = False,
+    revision: Optional[str] = None,
 ) -> tuple[Dataset, list[str], dict]:
     """Load processed dataset from local cache or download from HuggingFace Hub.
-    
+
     First tries to load from local processed_data/ directory. If not found,
     downloads from HuggingFace Hub and caches locally.
-    
+
     Args:
         repo_id: HuggingFace repository ID (e.g., 'username/dataset-name') or dataset name
         force_download: Force re-download even if local exists
-        
+        revision: Pin the HF Hub revision (commit hash/tag/branch) for an
+            immutable, reproducible download. Defaults to the
+            ``DSL_TOPIC_HF_REVISION`` env var if set, else the latest revision.
+            Note: only affects the *download* path — a pre-existing local cache is
+            used as-is, so clear it (or pass ``force_download=True``) to switch
+            revisions.
+
     Returns:
         Tuple of (dataset, vocab, metadata)
     """
+    if revision is None:
+        revision = os.environ.get("DSL_TOPIC_HF_REVISION")
     # Use basename of repo_id as local directory name
     local_name = repo_id.split("/")[-1]
     local_path = os.path.join(PROCESSED_DATA_DIR, local_name)
@@ -128,12 +137,13 @@ def load_or_download_dataset(
             print(f"Warning: vocab.json or metadata.json not found in {local_path}")
     
     # Download from HuggingFace Hub
-    print(f"Downloading dataset from HuggingFace Hub: {repo_id}")
-    dataset = load_dataset(repo_id, split='train')
-    
+    print(f"Downloading dataset from HuggingFace Hub: {repo_id}"
+          + (f" @ {revision}" if revision else ""))
+    dataset = load_dataset(repo_id, split='train', revision=revision)
+
     # Download vocab and metadata
-    vocab_hf_path = hf_hub_download(repo_id=repo_id, filename='vocab.json', repo_type='dataset')
-    metadata_hf_path = hf_hub_download(repo_id=repo_id, filename='metadata.json', repo_type='dataset')
+    vocab_hf_path = hf_hub_download(repo_id=repo_id, filename='vocab.json', repo_type='dataset', revision=revision)
+    metadata_hf_path = hf_hub_download(repo_id=repo_id, filename='metadata.json', repo_type='dataset', revision=revision)
     
     with open(vocab_hf_path, 'r') as f:
         vocab = json.load(f)
@@ -211,6 +221,26 @@ def load_metadata_from_hub(repo_id: str) -> dict:
     return metadata
 
 
+def filter_empty_documents(
+    bow_corpus: list[list[str]],
+    labels: Optional[list] = None,
+) -> tuple[list[list[str]], Optional[list]]:
+    """Drop zero-token documents, preserving order and label alignment.
+
+    OCTIS cannot handle empty documents, so they are removed before building
+    OCTIS files / datasets. Iterates ``enumerate(bow_corpus)`` in ascending
+    order and selects with that same index list, so the surviving documents
+    (and their labels) keep their original relative order and stay aligned.
+
+    Returns ``(filtered_corpus, filtered_labels)``; ``filtered_labels`` is
+    ``None`` iff ``labels`` is ``None``.
+    """
+    non_empty_indices = [i for i, doc in enumerate(bow_corpus) if len(doc) > 0]
+    filtered_corpus = [bow_corpus[i] for i in non_empty_indices]
+    filtered_labels = [labels[i] for i in non_empty_indices] if labels is not None else None
+    return filtered_corpus, filtered_labels
+
+
 def prepare_octis_files(
     local_path: str,
     bow_corpus: list[list[str]],
@@ -229,12 +259,10 @@ def prepare_octis_files(
         labels: Optional list of labels
     """
     os.makedirs(local_path, exist_ok=True)
-    
+
     # Filter out empty documents and corresponding labels
-    non_empty_indices = [i for i, doc in enumerate(bow_corpus) if len(doc) > 0]
-    filtered_corpus = [bow_corpus[i] for i in non_empty_indices]
-    filtered_labels = [labels[i] for i in non_empty_indices] if labels is not None else None
-    
+    filtered_corpus, filtered_labels = filter_empty_documents(bow_corpus, labels)
+
     # Save bow_dataset.txt (always overwrite to handle limit_dataset)
     bow_path = os.path.join(local_path, 'bow_dataset.txt')
     with open(bow_path, 'w', encoding='utf-8') as f:
@@ -264,19 +292,20 @@ def prepare_octis_files(
 
 def load_training_data(
     data_path: str,
-    for_generative: bool = True
+    for_dsl: bool = True,
+    revision: Optional[str] = None,
 ) -> TrainingData:
     """Load training data from local cache or HuggingFace Hub.
     
     First checks if a local copy exists in processed_data/. If not, downloads
     from HuggingFace Hub and caches locally.
     
-    Handles both generative models (which need embeddings + logits) and
+    Handles both dsl models (which need embeddings + logits) and
     baseline models (which only need BOW data).
     
     Args:
         data_path: HuggingFace repo ID (e.g., 'username/dataset-name') or dataset name
-        for_generative: Whether loading for generative model (needs embeddings)
+        for_dsl: Whether loading for dsl model (needs embeddings)
         
     Returns:
         TrainingData containing all necessary data for training
@@ -286,7 +315,7 @@ def load_training_data(
     local_data_path = os.path.join(PROCESSED_DATA_DIR, local_name)
     
     # Load from local cache or download from HuggingFace Hub
-    dataset, vocab, metadata = load_or_download_dataset(data_path)
+    dataset, vocab, metadata = load_or_download_dataset(data_path, revision=revision)
     
     # Get labels if available
     labels = list(dataset['label']) if 'label' in dataset.column_names else None
@@ -297,18 +326,15 @@ def load_training_data(
     bow_corpus = [bow.split() for bow in tqdm(dataset['bow'], desc="Loading BOW")]
     
     # For baseline models, filter out empty documents to avoid OCTIS issues
-    if not for_generative:
-        non_empty_indices = [i for i, doc in enumerate(bow_corpus) if len(doc) > 0]
-        bow_corpus = [bow_corpus[i] for i in non_empty_indices]
-        if labels is not None:
-            labels = [labels[i] for i in non_empty_indices]
-        
+    if not for_dsl:
+        bow_corpus, labels = filter_empty_documents(bow_corpus, labels)
+
         # Prepare OCTIS-compatible files
         prepare_octis_files(local_data_path, bow_corpus, vocab, labels)
     
-    # For generative models, also extract embeddings and logits
+    # For dsl models, also extract embeddings and logits
     processed_dataset = None
-    if for_generative:
+    if for_dsl:
         processed_dataset = dataset
     
     return TrainingData(

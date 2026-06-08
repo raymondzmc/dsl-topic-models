@@ -1,5 +1,4 @@
 import os
-import math
 import datetime
 import torch
 import numpy as np
@@ -7,8 +6,9 @@ from collections import defaultdict
 from torch import nn, optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from dsl_topic.models._vendored.octis.contextualized_topic_models.inference_network import ContextualInferenceNetwork
-from dsl_topic.models._vendored.octis.early_stopping.pytorchtools import EarlyStopping
+from dsl_topic.models.baselines.octis.contextualized_topic_models.inference_network import ContextualInferenceNetwork
+from dsl_topic.models.baselines.octis.early_stopping.pytorchtools import EarlyStopping
+from dsl_topic.models.dsl._objective import topk_target, distillation_loss
 
 
 class Autoencoder(torch.nn.Module):
@@ -266,24 +266,14 @@ class DSLProdLDA(object):
             var_division + diff_term - self.num_topics + logvar_det_division)
 
         # Reconstruction term: sparse top-k target with -inf masking
-        if self.topk is not None:
-            k = self.topk
-        else:
-            k = math.ceil(self.sparsity_ratio * teacher_logits.size(1))
-        topk_vals, topk_idx = torch.topk(teacher_logits, k=k, dim=1)
-        masked_logits = torch.full_like(teacher_logits, float('-inf'))
-        masked_logits.scatter_(1, topk_idx, topk_vals)
-
-        if self.loss_type == 'CE':
-            teacher_probs = torch.softmax(masked_logits / self.temperature, dim=-1)
-            RL = -torch.sum(teacher_probs * torch.log(student_probs + 1e-10), dim=1)
-        elif self.loss_type == 'KL':
-            teacher_probs = torch.softmax(masked_logits / self.temperature, dim=-1)
-            teacher_probs = teacher_probs.clamp_min(1e-9)
-            student_probs = student_probs.clamp_min(1e-9)
-            RL = torch.sum(teacher_probs * torch.log(teacher_probs / student_probs), dim=1)
-        else:
-            raise ValueError(f"Invalid loss type: {self.loss_type}")
+        masked_logits = topk_target(
+            teacher_logits, k=self.topk, sparsity_ratio=self.sparsity_ratio,
+            mask_mode="neg_inf",
+        )
+        RL = distillation_loss(
+            masked_logits, student_probs, loss_type=self.loss_type,
+            temperature=self.temperature, ce_softmax_teacher=True,
+        )
 
         loss = KL + self.loss_weight * RL
         return loss.sum()

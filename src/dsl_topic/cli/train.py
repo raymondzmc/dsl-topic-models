@@ -14,25 +14,16 @@ from dsl_topic.data.loaders import load_training_data
 from dsl_topic.data.octis_dataset import prepare_octis_dataset
 from dsl_topic.data.ctm_dataset import get_ctm_dataset_from_processed_data
 from dsl_topic.evaluation.metrics import compute_aggregate_results, evaluate_topic_model
+from dsl_topic.cli._io import (
+    save_model_output, save_evaluation, save_aggregate, save_labels, _dump_json,
+)
 from dsl_topic.settings import settings
-
-# Model-specific imports
-from bertopic import BERTopic
-from gensim.downloader import load as gensim_load
-from sklearn.feature_extraction.text import CountVectorizer
-from dsl_topic.models._vendored.octis import LDA, ProdLDA, CTM, ETM
-from dsl_topic.models._vendored.fastopic import FASTopicTrainer
-from dsl_topic.models._vendored.topmost.ECRTM import ECRTMTrainer
-from dsl_topic.models._vendored.topmost.data import RawDataset
-from dsl_topic.models.dsl.prodlda import DSLProdLDA
-from dsl_topic.models.dsl.etm import DSLETM
-from dsl_topic.models.dsl.ecrtm import DSLECRTM
-from dsl_topic.models.dsl.fastopic import DSLFASTopic
+from dsl_topic.cli._model_builders import BuildContext, MODEL_BUILDERS
 
 
-LLM_MODELS = {'generative', 'generative_etm', 'generative_ecrtm', 'generative_fastopic'}
+DSL_MODELS = {'dsl', 'dsl_etm', 'dsl_ecrtm', 'dsl_fastopic'}
 BASELINE_MODELS = {'lda', 'prodlda', 'zeroshot', 'combined', 'etm', 'bertopic', 'fastopic', 'ecrtm'}
-ALL_MODELS = LLM_MODELS | BASELINE_MODELS
+ALL_MODELS = DSL_MODELS | BASELINE_MODELS
 
 
 def set_seed(seed: int):
@@ -57,271 +48,20 @@ def train_model(
     octis_dataset = None,
 ) -> dict:
     """Train a topic model and return output dictionary."""
-    if model_name == 'generative':
-        if ctm_dataset is None:
-            raise ValueError("Generative model requires ctm_dataset")
-        
-        model = DSLProdLDA(
-            vocab_size=len(vocab),
-            embedding_size=ctm_dataset.x_embeddings.shape[1],
-            num_topics=args.num_topics,
-            activation=args.activation,
-            hidden_sizes=tuple([args.hidden_size] * args.num_hidden_layers),
-            solver=args.solver,
-            num_epochs=args.num_epochs,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            loss_weight=args.loss_weight,
-            sparsity_ratio=args.sparsity_ratio,
-            topk=args.topk,
-            loss_type=args.loss_type,
-            temperature=args.temperature,
-            top_words=args.top_words,
-        )
-        model.fit(ctm_dataset)
-        return model.get_info()
-    
-    elif model_name == 'generative_etm':
-        if ctm_dataset is None:
-            raise ValueError("generative_etm requires ctm_dataset")
-        idx2token = {i: w for i, w in enumerate(vocab)}
-        model = DSLETM(
-            vocab_size=len(vocab),
-            embedding_size=ctm_dataset.x_embeddings.shape[1],
-            num_topics=args.num_topics,
-            t_hidden_size=args.hidden_size,
-            activation=args.activation,
-            dropout=0.5,
-            lr=args.lr,
-            batch_size=args.batch_size,
-            num_epochs=args.num_epochs,
-            temperature=args.temperature,
-            loss_weight=args.loss_weight,
-            sparsity_ratio=args.sparsity_ratio,
-            loss_type=args.loss_type,
-            top_words=args.top_words,
-        )
-        model.fit(ctm_dataset)
-        info = model.get_info(idx2token=idx2token)
-        theta = model.get_theta(ctm_dataset)
-        info['topic-document-matrix'] = theta.T
-        return info
-    
-    elif model_name == 'generative_ecrtm':
-        if ctm_dataset is None:
-            raise ValueError("generative_ecrtm requires ctm_dataset")
-
-        import scipy.sparse
-        glove_path = os.path.join(local_data_path, 'glove_word_embeddings.npz')
-        if os.path.exists(glove_path):
-            pretrained_WE = scipy.sparse.load_npz(glove_path).toarray().astype('float32')
-        else:
-            from dsl_topic.models._vendored.topmost.ECRTM.preprocess import get_word_embeddings
-            pretrained_WE_sparse = get_word_embeddings(vocab, embedding_model='glove-wiki-gigaword-200')
-            scipy.sparse.save_npz(glove_path, pretrained_WE_sparse)
-            pretrained_WE = pretrained_WE_sparse.toarray().astype('float32')
-
-        model = DSLECRTM(
-            vocab_size=len(vocab),
-            embedding_size=ctm_dataset.x_embeddings.shape[1],
-            num_topics=args.num_topics,
-            vocab=vocab,
-            pretrained_WE=pretrained_WE,
-            epochs=args.num_epochs,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            temperature=args.temperature,
-            loss_weight=args.loss_weight,
-            sparsity_ratio=args.sparsity_ratio,
-            loss_type=args.loss_type,
-            top_words=args.top_words,
-        )
-        model.fit(ctm_dataset)
-        info = model.get_info()
-        theta = model.get_theta(ctm_dataset)
-        info['topic-document-matrix'] = theta.T
-        return info
-    
-    elif model_name == 'generative_fastopic':
-        if ctm_dataset is None:
-            raise ValueError("generative_fastopic requires ctm_dataset")
-
-        model = DSLFASTopic(
-            vocab_size=len(vocab),
-            embedding_size=ctm_dataset.x_embeddings.shape[1],
-            num_topics=args.num_topics,
-            epochs=args.num_epochs,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            temperature=args.temperature,
-            top_words=args.top_words,
-            vocab=vocab,
-        )
-        model.fit(ctm_dataset)
-        info = model.get_info()
-        theta = model.get_theta(ctm_dataset)
-        info['topic-document-matrix'] = theta.T
-        return info
-    
-    elif model_name == 'lda':
-        model = LDA(num_topics=args.num_topics, random_state=seed)
-        return model.train_model(dataset=octis_dataset, top_words=args.top_words)
-    
-    elif model_name == 'prodlda':
-        model = ProdLDA(
-            num_topics=args.num_topics,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            activation=args.activation,
-            solver=args.solver,
-            num_layers=args.num_hidden_layers,
-            num_neurons=args.hidden_size,
-            num_epochs=args.num_epochs,
-            use_partitions=False,
-        )
-        return model.train_model(dataset=octis_dataset, top_words=args.top_words)
-    
-    elif model_name in ['zeroshot', 'combined']:
-        model = CTM(
-            num_topics=args.num_topics,
-            num_layers=args.num_hidden_layers,
-            num_neurons=args.hidden_size,
-            batch_size=args.batch_size,
-            lr=args.lr,
-            activation=args.activation,
-            solver=args.solver,
-            num_epochs=args.num_epochs,
-            inference_type=model_name,
-            bert_path=os.path.join(local_data_path, 'gte-large-en-v1.5'),
-            bert_model='Alibaba-NLP/gte-large-en-v1.5',
-            use_partitions=False,
-        )
-        model.set_seed(seed)
-        return model.train_model(dataset=octis_dataset, top_words=args.top_words)
-    
-    elif model_name == 'etm':
-        word2vec_path = 'word2vec-google-news-300.kv'
-        if not os.path.exists(word2vec_path):
-            word2vec = gensim_load('word2vec-google-news-300')
-            word2vec.save_word2vec_format(word2vec_path, binary=True)
-
-        model = ETM(
-            num_topics=args.num_topics,
-            use_partitions=False,
-            train_embeddings=False,
-            embeddings_path=word2vec_path,
-            embeddings_type='word2vec',
-            binary_embeddings=True,
-        )
-        return model.train_model(
-            dataset=octis_dataset,
-            top_words=args.top_words,
-            op_path=os.path.join(checkpoint_dir, 'checkpoint.pt'),
-        )
-    
-    elif model_name == 'bertopic':
-        embedding_model = SentenceTransformer("Alibaba-NLP/gte-large-en-v1.5", trust_remote_code=True)
-        text_corpus = [' '.join(word_list) for word_list in bow_corpus]
-        embeddings = embedding_model.encode(
-            text_corpus,
-            batch_size=32,
-            show_progress_bar=True,
-            normalize_embeddings=True,
-        )
-        
-        # Constrain BERTopic to use the preprocessed vocabulary for fair comparison
-        # This ensures topics are distributions over the same vocab as ProdLDA/ETM/ZeroshotTM
-        vectorizer = CountVectorizer(vocabulary={w: i for i, w in enumerate(vocab)})
-        
-        model = BERTopic(
-            vectorizer_model=vectorizer,
-            language='english',
-            top_n_words=args.top_words,
-            nr_topics=args.num_topics + 1,
-            calculate_probabilities=True,
-            verbose=True,
-            low_memory=False,
-        )
-        output = model.fit_transform(text_corpus, embeddings=embeddings)
-        all_topics = model.get_topics()
-        topics = [
-            # Filter out empty strings that BERTopic adds when topic has fewer words than top_n_words
-            [word_prob[0] for word_prob in topic if word_prob[0].strip()]
-            for topic_id, topic in all_topics.items() if topic_id != -1
-        ]
-        return {
-            'topics': topics,
-            'topic-document-matrix': output[1].transpose(),
-        }
-    
-    elif model_name == 'fastopic':
-        text_corpus = [' '.join(word_list) for word_list in bow_corpus]
-        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        dataset = RawDataset(text_corpus, device=device)
-        embedding_model = SentenceTransformer("Alibaba-NLP/gte-large-en-v1.5", trust_remote_code=True)
-        trainer = FASTopicTrainer(
-            dataset=dataset,
-            num_topics=args.num_topics,
-            num_top_words=args.top_words,
-            doc_embed_model=embedding_model,
-            low_memory=True,
-            low_memory_batch_size=262144,
-        )
-        top_words, doc_topic_dist = trainer.train()
-        
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        
-        return {
-            'topics': [topic_string.split(' ') for topic_string in top_words],
-            'topic-document-matrix': doc_topic_dist.transpose(),
-        }
-    
-    elif model_name == 'ecrtm':
-        # Convert bow_corpus to BoW matrix using CountVectorizer
-        import scipy.sparse
-        
-        text_corpus = [' '.join(word_list) for word_list in bow_corpus]
-        vocab2id = {word: idx for idx, word in enumerate(vocab)}
-        
-        vectorizer = CountVectorizer(vocabulary=vocab2id, token_pattern=r'(?u)\b\w+\b')
-        bow_matrix = vectorizer.fit_transform(text_corpus).toarray().astype('float32')
-        
-        # Load or compute GloVe word embeddings
-        glove_path = os.path.join(local_data_path, 'glove_word_embeddings.npz')
-        if os.path.exists(glove_path):
-            print(f"Loading cached GloVe embeddings from {glove_path}")
-            pretrained_WE = scipy.sparse.load_npz(glove_path).toarray().astype('float32')
-        else:
-            print(f"Computing GloVe embeddings for vocabulary...")
-            from dsl_topic.models._vendored.topmost.ECRTM.preprocess import get_word_embeddings
-            pretrained_WE_sparse = get_word_embeddings(vocab, embedding_model='glove-wiki-gigaword-200')
-            scipy.sparse.save_npz(glove_path, pretrained_WE_sparse)
-            pretrained_WE = pretrained_WE_sparse.toarray().astype('float32')
-            print(f"Cached GloVe embeddings to {glove_path}")
-        
-        # Initialize and train ECRTM
-        trainer = ECRTMTrainer(
-            vocab_size=len(vocab),
-            num_topics=args.num_topics,
-            vocab=vocab,
-            pretrained_WE=pretrained_WE,
-        )
-        
-        beta = trainer.train(bow_matrix, verbose=True)
-        topics = trainer.get_topics(beta, top_words=args.top_words)
-        theta = trainer.get_theta(bow_matrix)
-        
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        
-        return {
-            'topics': topics,
-            'topic-document-matrix': theta.T,
-        }
-    
-    else:
+    builder = MODEL_BUILDERS.get(model_name)
+    if builder is None:
         raise ValueError(f"Unknown model: {model_name}")
+    ctx = BuildContext(
+        args=args,
+        seed=seed,
+        checkpoint_dir=checkpoint_dir,
+        local_data_path=local_data_path,
+        vocab=vocab,
+        bow_corpus=bow_corpus,
+        ctm_dataset=ctm_dataset,
+        octis_dataset=octis_dataset,
+    )
+    return builder(ctx)
 
 
 def run_reevaluate(args: argparse.Namespace):
@@ -434,12 +174,11 @@ def run_reevaluate(args: argparse.Namespace):
             
             # Copy model output
             torch.save(model_output, os.path.join(new_seed_dir, 'model_output.pt'))
-            
+
             # Copy topics
             if 'topics' in model_output:
-                with open(os.path.join(new_seed_dir, 'topics.json'), 'w', encoding='utf-8') as f:
-                    json.dump(model_output['topics'], f)
-            
+                _dump_json(model_output['topics'], os.path.join(new_seed_dir, 'topics.json'))
+
             # Re-evaluate
             evaluation_results = evaluate_topic_model(
                 model_output,
@@ -447,22 +186,19 @@ def run_reevaluate(args: argparse.Namespace):
                 labels=labels,
             )
             evaluation_results['training_time'] = training_time
-            
-            with open(os.path.join(new_seed_dir, 'evaluation_results.json'), 'w', encoding='utf-8') as f:
-                json.dump(evaluation_results, f)
-            
+
+            save_evaluation(evaluation_results, new_seed_dir)
+
             print(f"[Seed {seed}] {evaluation_results}")
             new_run.log({f"seed_{seed}/{k}": v for k, v in evaluation_results.items()})
         
         # Aggregated results
         averaged_results = compute_aggregate_results(results_dir)
-        with open(os.path.join(results_dir, 'averaged_results.json'), 'w', encoding='utf-8') as f:
-            json.dump(averaged_results, f)
-        
+        save_aggregate(averaged_results, results_dir)
+
         # Copy labels and vocab embeddings
         if labels is not None:
-            with open(os.path.join(results_dir, 'labels.json'), 'w', encoding='utf-8') as f:
-                json.dump(labels, f)
+            save_labels(labels, results_dir)
         
         new_run.log({f"avg/{k}": v for k, v in averaged_results.items()})
         print(f"\nAveraged: {averaged_results}")
@@ -496,8 +232,8 @@ def run_reevaluate(args: argparse.Namespace):
 
 def run(args: argparse.Namespace):
     """Main training and evaluation loop."""
-    is_generative = args.model in LLM_MODELS
-    training_data = load_training_data(args.data_path, for_generative=is_generative)
+    is_dsl = args.model in DSL_MODELS
+    training_data = load_training_data(args.data_path, for_dsl=is_dsl)
 
     octis_data_path = training_data.local_path
     metadata = training_data.metadata or {}
@@ -510,9 +246,9 @@ def run(args: argparse.Namespace):
         # Fallback: use folder name (shouldn't happen with properly processed data)
         dataset_name = os.path.basename(training_data.local_path)
     
-    # Extract model name for generative models (e.g., 'baidu/ERNIE-4.5-0.3B-PT' -> 'ERNIE-4.5-0.3B-PT')
+    # Extract model name for dsl models (e.g., 'baidu/ERNIE-4.5-0.3B-PT' -> 'ERNIE-4.5-0.3B-PT')
     model_name_suffix = ""
-    if args.model in LLM_MODELS:
+    if args.model in DSL_MODELS:
         original_model_name = metadata.get('args', {}).get('model_name', '')
         if original_model_name:
             model_name_suffix = f"_{os.path.basename(original_model_name)}"
@@ -530,9 +266,9 @@ def run(args: argparse.Namespace):
             training_data.labels,
         )
     
-    # Pre-compute CTM dataset for generative models (only once, not per seed)
+    # Pre-compute CTM dataset for dsl models (only once, not per seed)
     ctm_dataset = None
-    if args.model in LLM_MODELS:
+    if args.model in DSL_MODELS:
         # Load embedding model for ablation if specified
         ablation_embedding_model = None
         if args.ablation_embedding_model:
@@ -577,7 +313,7 @@ def run(args: argparse.Namespace):
         'top_words': args.top_words,
         'num_seeds': args.num_seeds,
     }
-    if args.model in LLM_MODELS:
+    if args.model in DSL_MODELS:
         wandb_config.update({
             'loss_weight': args.loss_weight,
             'sparsity_ratio': args.sparsity_ratio,
@@ -590,7 +326,7 @@ def run(args: argparse.Namespace):
 
     # Build run name with ablation suffixes
     run_name = f"{args.model}{model_name_suffix}_K{args.num_topics}"
-    if args.model in LLM_MODELS:
+    if args.model in DSL_MODELS:
         if args.ablation_use_bow_target:
             run_name += "_bow-target"
         if args.ablation_embedding_model:
@@ -623,104 +359,93 @@ def run(args: argparse.Namespace):
             mode='online' if not args.wandb_offline else 'offline',
         )
 
-    import contextlib
-    with contextlib.nullcontext():
-        all_results = []
-        
-        for seed in range(args.num_seeds):
-            set_seed(seed)
-            seed_dir = os.path.join(results_dir, f"seed_{seed}")
-            os.makedirs(seed_dir, exist_ok=True)
-            
-            print(f"\n[Seed {seed}] Training {args.model}...")
-            start_time = time.time()
-            
-            model_output = train_model(
-                model_name=args.model,
-                args=args,
-                seed=seed,
-                checkpoint_dir=seed_dir,
-                local_data_path=octis_data_path,
-                vocab=training_data.vocab,
-                bow_corpus=eval_corpus,  # Use filtered corpus for consistent doc alignment
-                ctm_dataset=ctm_dataset,
-                octis_dataset=octis_dataset,
-            )
-            
-            training_time = time.time() - start_time
-            model_output['training_time'] = training_time
-            print(f"[Seed {seed}] Trained in {training_time:.2f}s")
-            
-            # Save model output
-            torch.save(model_output, os.path.join(seed_dir, 'model_output.pt'))
-            
-            # Save topics
-            with open(os.path.join(seed_dir, 'topics.json'), 'w', encoding='utf-8') as f:
-                json.dump(model_output['topics'], f)
-            
-            # Evaluate
-            print(f"[Seed {seed}] Evaluating...")
-            evaluation_results = evaluate_topic_model(
-                model_output,
-                top_words=args.top_words,
-                labels=eval_labels,
-                skip_llm_rating=args.skip_llm_rating,
-            )
-            evaluation_results['training_time'] = training_time
+    all_results = []
 
-            with open(os.path.join(seed_dir, 'evaluation_results.json'), 'w', encoding='utf-8') as f:
-                json.dump(evaluation_results, f)
+    for seed in range(args.num_seeds):
+        set_seed(seed)
+        seed_dir = os.path.join(results_dir, f"seed_{seed}")
+        os.makedirs(seed_dir, exist_ok=True)
 
-            if args.wandb:
-                wb_run.log({f"seed_{seed}/{k}": v for k, v in evaluation_results.items()})
-            all_results.append(evaluation_results)
-        
-        # Aggregated results
-        averaged_results = compute_aggregate_results(results_dir)
-        with open(os.path.join(results_dir, 'averaged_results.json'), 'w', encoding='utf-8') as f:
-            json.dump(averaged_results, f)
-        
-        # Save labels for re-evaluation (use filtered labels to match model output)
-        has_labels = eval_labels is not None
-        if has_labels:
-            labels_list = eval_labels
-            if hasattr(labels_list, 'tolist'):
-                labels_list = labels_list.tolist()
-            with open(os.path.join(results_dir, 'labels.json'), 'w', encoding='utf-8') as f:
-                json.dump(labels_list, f)
-        
-        # Save vocab for reproducibility
-        if training_data.vocab is not None:
-            with open(os.path.join(results_dir, 'vocab.json'), 'w', encoding='utf-8') as f:
-                json.dump(training_data.vocab, f)
-        
-        # Save config for reproducibility
-        with open(os.path.join(results_dir, 'config.json'), 'w', encoding='utf-8') as f:
-            json.dump(wandb_config, f)
-        
+        print(f"\n[Seed {seed}] Training {args.model}...")
+        start_time = time.time()
+
+        model_output = train_model(
+            model_name=args.model,
+            args=args,
+            seed=seed,
+            checkpoint_dir=seed_dir,
+            local_data_path=octis_data_path,
+            vocab=training_data.vocab,
+            bow_corpus=eval_corpus,  # Use filtered corpus for consistent doc alignment
+            ctm_dataset=ctm_dataset,
+            octis_dataset=octis_dataset,
+        )
+
+        training_time = time.time() - start_time
+        model_output['training_time'] = training_time
+        print(f"[Seed {seed}] Trained in {training_time:.2f}s")
+
+        # Save model output and topics
+        save_model_output(model_output, seed_dir)
+
+        # Evaluate
+        print(f"[Seed {seed}] Evaluating...")
+        evaluation_results = evaluate_topic_model(
+            model_output,
+            top_words=args.top_words,
+            labels=eval_labels,
+            skip_llm_rating=args.skip_llm_rating,
+        )
+        evaluation_results['training_time'] = training_time
+
+        save_evaluation(evaluation_results, seed_dir)
+
         if args.wandb:
-            wb_run.log({f"avg/{k}": v for k, v in averaged_results.items()})
-            print("\nUploading artifact to wandb...")
-            artifact = wandb.Artifact(
-                name=f"{args.model}-K{args.num_topics}-{dataset_name}",
-                type="model",
-                description=f"Topic model: {args.model} on {dataset_name} (K={args.num_topics}, seeds={args.num_seeds})",
-                metadata={
-                    "model": args.model,
-                    "dataset": dataset_name,
-                    "num_topics": args.num_topics,
-                    "num_seeds": args.num_seeds,
-                    "top_words": args.top_words,
-                    "has_labels": has_labels,
-                }
-            )
-            artifact.add_dir(results_dir)
-            wb_run.log_artifact(artifact)
-            wb_run.finish()
-            print(f"\nView run: https://wandb.ai/{settings.wandb_entity}/{wandb_project}")
+            wb_run.log({f"seed_{seed}/{k}": v for k, v in evaluation_results.items()})
+        all_results.append(evaluation_results)
 
-        print(f"\n[done] Results written to {results_dir}")
-        print(f"       Aggregated metrics: {os.path.join(results_dir, 'averaged_results.json')}")
+    # Aggregated results
+    averaged_results = compute_aggregate_results(results_dir)
+    save_aggregate(averaged_results, results_dir)
+
+    # Save labels for re-evaluation (use filtered labels to match model output)
+    has_labels = eval_labels is not None
+    if has_labels:
+        labels_list = eval_labels
+        if hasattr(labels_list, 'tolist'):
+            labels_list = labels_list.tolist()
+        save_labels(labels_list, results_dir)
+
+    # Save vocab for reproducibility
+    if training_data.vocab is not None:
+        _dump_json(training_data.vocab, os.path.join(results_dir, 'vocab.json'))
+
+    # Save config for reproducibility
+    _dump_json(wandb_config, os.path.join(results_dir, 'config.json'))
+
+    if args.wandb:
+        wb_run.log({f"avg/{k}": v for k, v in averaged_results.items()})
+        print("\nUploading artifact to wandb...")
+        artifact = wandb.Artifact(
+            name=f"{args.model}-K{args.num_topics}-{dataset_name}",
+            type="model",
+            description=f"Topic model: {args.model} on {dataset_name} (K={args.num_topics}, seeds={args.num_seeds})",
+            metadata={
+                "model": args.model,
+                "dataset": dataset_name,
+                "num_topics": args.num_topics,
+                "num_seeds": args.num_seeds,
+                "top_words": args.top_words,
+                "has_labels": has_labels,
+            }
+        )
+        artifact.add_dir(results_dir)
+        wb_run.log_artifact(artifact)
+        wb_run.finish()
+        print(f"\nView run: https://wandb.ai/{settings.wandb_entity}/{wandb_project}")
+
+    print(f"\n[done] Results written to {results_dir}")
+    print(f"       Aggregated metrics: {os.path.join(results_dir, 'averaged_results.json')}")
 
 
 def main():
@@ -730,8 +455,11 @@ def main():
     parser.add_argument('--data_path', type=str, default=None, help='Path to data directory or HF repo ID')
     
     # Model arguments
-    parser.add_argument('--model', type=str, default='generative',
-                        choices=list(ALL_MODELS), help='Model to train')
+    parser.add_argument('--model', type=str, default='dsl',
+                        choices=list(ALL_MODELS),
+                        help="Model to train. DSL (paper) methods: 'dsl'=DSL-ProdLDA "
+                             "(the main method), 'dsl_ecrtm'/'dsl_fastopic'/"
+                             "'dsl_etm'=DSL on that backbone. The rest are baselines.")
     parser.add_argument('--num_topics', type=int, default=25, help='Number of topics')
     parser.add_argument('--top_words', type=int, default=15, help='Top words per topic')
     
@@ -745,14 +473,14 @@ def main():
     parser.add_argument('--activation', type=str, default='softplus', help='Activation')
     parser.add_argument('--solver', type=str, default='adam', help='Optimizer')
     
-    # Generative model arguments
+    # DSL model arguments
     parser.add_argument('--loss_weight', type=float, default=1e3, help='Reconstruction loss weight')
     parser.add_argument('--sparsity_ratio', type=float, default=1.0, help='Sparsity ratio')
     parser.add_argument('--topk', type=int, default=None, help='Top-k words to keep in LLM target (overrides sparsity_ratio)')
     parser.add_argument('--loss_type', type=str, default='KL', choices=['KL', 'CE'], help='Loss type')
     parser.add_argument('--temperature', type=float, default=3.0, help='Softmax temperature')
     
-    # Ablation arguments (generative model only)
+    # Ablation arguments (dsl model only)
     parser.add_argument('--ablation_embedding_model', type=str, default=None,
                         help='Use a different SentenceTransformer model for embeddings (ablation)')
     parser.add_argument('--ablation_use_bow_target', action='store_true',

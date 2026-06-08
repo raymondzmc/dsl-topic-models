@@ -35,7 +35,7 @@ for lm in "${LMS[@]}"; do
     echo "+ process ${ds} with ${LM_HF[$lm]} (batch_size=${BATCH_SIZE})"
     "$PY" -m dsl_topic.cli.process_dataset $(ds_args "$ds") \
       --model_name "${LM_HF[$lm]}" \
-      --vocab_size 2000 --embedding_method last --word_prob_method prefix \
+      --vocab_size 2000 --embedding_method last \
       --batch_size "$BATCH_SIZE" --save_name "$save" --no_upload \
       || echo "  [warn] processing failed: ${ds} / ${lm} (continuing)"
   done
