@@ -35,6 +35,19 @@ LMS=(ERNIE-4.5-0.3B-PT Qwen3.5-0.8B Llama-3.2-1B-Instruct Llama-3.1-8B-Instruct 
 # Baselines were trained on the Llama-3.1-8B-processed corpus (BoW + embeddings).
 BASELINE_EMB_LM="Llama-3.1-8B-Instruct"
 
+# Per-model training epochs, matching the paper (sec:baseline-detailed): the ECRTM
+# and FASTopic baselines train 200 epochs, and DSL keeps the original model-specific
+# settings, so the ECRTM/FASTopic DSL backbones also use 200; ProdLDA and the rest
+# use $EPOCHS (100). An explicit NUM_EPOCHS override (e.g. smoke tests) wins for all.
+EPOCHS_OVERRIDDEN=$([ -n "${NUM_EPOCHS:-}" ] && echo 1 || echo 0)
+model_epochs() {  # arg: model key (e.g. dsl, dsl_ecrtm)
+  if [ "$EPOCHS_OVERRIDDEN" = "1" ]; then echo "$EPOCHS"; return; fi
+  case "$1" in
+    dsl_ecrtm|dsl_fastopic) echo 200 ;;
+    *) echo "$EPOCHS" ;;
+  esac
+}
+
 # Resolve a data path: "<HF_NAMESPACE>/<dataset>_<lm>_vocab_2000_last".
 # loaders.py resolves this local-first (data/processed_data/<name>) and falls
 # back to downloading the HF dataset of the same name.

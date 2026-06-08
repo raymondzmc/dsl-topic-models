@@ -1,7 +1,6 @@
 
 import itertools
 import numpy as np
-import dsl_topic.models._vendored.octis.configuration.citations as citations
 from dsl_topic.evaluation.abc import AbstractMetric
 from dsl_topic.evaluation.rbo import rbo
 
@@ -19,10 +18,7 @@ class TopicDiversity(AbstractMetric):
         self.topk = topk
 
     def info(self):
-        return {
-            "citation": citations.em_topic_diversity,
-            "name": "Topic diversity"
-        }
+        return {"name": "Topic diversity"}
 
     def score(self, model_output):
         """
@@ -87,6 +83,15 @@ class InvertedRBO(AbstractMetric):
 
 
 def get_word2index(list1, list2):
+    """Map the union of words in ``list1`` and ``list2`` to integer ids.
+
+    Used only to re-encode the two word lists before computing RBO. The set
+    iteration order is not fixed across runs, but that does NOT make RBO
+    non-deterministic: the *same* mapping is applied to both lists within a
+    single call, and RBO depends only on element agreement, which is invariant
+    under a consistent relabeling. Do not "fix" this with ``sorted()`` — it
+    would change nothing numerically and only touches load-bearing code.
+    """
     words = set(list1)
     words = words.union(set(list2))
     word2index = {w: i for i, w in enumerate(words)}

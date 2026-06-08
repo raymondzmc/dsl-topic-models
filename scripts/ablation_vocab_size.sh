@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Ablation: vocabulary size |V| (paper appendix "Experiments with Different Vocabulary Sizes").
-# Re-process 20Newsgroups/ERNIE at |V| in {500,1000,2000,4000}, then train generative + 8 baselines.
+# Re-process 20Newsgroups/ERNIE at |V| in {500,1000,2000,4000}, then train dsl + 8 baselines.
 # Results go to results/vocab_<V>/ (the source dataset name is identical across |V|, so we
 # disambiguate via --output_dir).
 cd "$(dirname "$0")/.." && source scripts/common.sh
 
 lm="ERNIE-4.5-0.3B-PT"
 VOCABS=(500 1000 2000 4000)
-MODELS=(generative lda prodlda zeroshot combined etm bertopic fastopic ecrtm)
+MODELS=(dsl lda prodlda zeroshot combined etm bertopic fastopic ecrtm)
 
 for V in "${VOCABS[@]}"; do
   save="20_newsgroups_${lm}_vocab_${V}_last"

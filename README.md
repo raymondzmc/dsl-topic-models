@@ -36,6 +36,8 @@ cd dsl-topic-models
 # Create an environment (Python 3.10–3.12) and install the package.
 conda create -n dsl-topic python=3.12 -y && conda activate dsl-topic
 pip install -e .                 # installs the `dsl_topic` package + CLIs
+# For the EXACT tested versions (paper reproduction):
+#   pip install -r requirements.lock && pip install -e . --no-deps
 
 # (optional) copy the credentials template — none are required for training
 cp .env.example .env
@@ -65,7 +67,8 @@ last-layer hidden state — the topic-model input), `bow` (Bag-of-Words), and `l
 
 - **Download (recommended, bit-exact):** the launch scripts pass
   `<HF_NAMESPACE>/<name>` (default namespace `raymondzmc`), so datasets auto-download on
-  first use. Set `HF_NAMESPACE=you` to use your own copies.
+  first use. Set `HF_NAMESPACE=you` to use your own copies. For an immutable,
+  reproducible download pin a Hub revision with `DSL_TOPIC_HF_REVISION=<commit>`.
 - **Regenerate locally:** `bash scripts/process_all.sh` rebuilds all 3 datasets × 5 LMs
   from `data/raw_data/` (StackOverflow, TweetTopic — committed) and `SetFit/20_newsgroups`
   (from HF). Because LM inference in bf16 is not bit-deterministic, regenerated targets can
@@ -112,7 +115,8 @@ NUM_SEEDS=1 NUM_EPOCHS=10 SKIP_LLM=1 bash scripts/reproduce_all.sh   # fast smok
 
 **Conventions.** Datasets `{20_newsgroups, tweet_topic, stackoverflow}`; LMs
 `{ERNIE-4.5-0.3B-PT, Qwen3.5-0.8B, Llama-3.2-1B-Instruct, Llama-3.1-8B-Instruct,
-Phi-3-mini-128k-instruct}`; `K ∈ {25,50,75,100}`; 5 seeds; 100 epochs. Per-script
+Phi-3-mini-128k-instruct}`; `K ∈ {25,50,75,100}`; 5 seeds; 100 epochs (the ECRTM/FASTopic DSL backbones use 200 to match their
+baselines). Per-script
 overrides: `PYTHON`, `CUDA_VISIBLE_DEVICES`, `NUM_SEEDS`, `NUM_EPOCHS`, `SKIP_LLM=1`,
 `USE_WANDB=1`, `HF_NAMESPACE`, `BATCH_SIZE` (see `scripts/common.sh`).
 
@@ -120,9 +124,9 @@ overrides: `PYTHON`, `CUDA_VISIBLE_DEVICES`, `NUM_SEEDS`, `NUM_EPOCHS`, `SKIP_LL
 
 | Paper result | Script | Grid (× 5 seeds, K∈{25,50,75,100}) |
 |---|---|---|
-| Main table — ProdLDA + DSL | `scripts/run_main.sh` | `generative` × 5 LMs × 3 datasets |
+| Main table — ProdLDA + DSL | `scripts/run_main.sh` | `dsl` × 5 LMs × 3 datasets |
 | Main table — baselines | `scripts/run_baselines.sh` | {lda, prodlda, zeroshot, combined, etm, bertopic, fastopic, ecrtm} × 3 datasets (Llama-3.1-8B corpus) |
-| Other backbones + DSL | `scripts/run_backbones.sh` | {generative_ecrtm, generative_fastopic, generative_etm} × 5 LMs × 3 datasets |
+| Other backbones + DSL | `scripts/run_backbones.sh` | {dsl_ecrtm, dsl_fastopic, dsl_etm} × 5 LMs × 3 datasets |
 | Retrieval (Precision@k) | `scripts/run_retrieval.sh` | P@{1,5,10} for every run in `results/` (run after training) |
 
 **Ablations**
@@ -135,8 +139,8 @@ overrides: `PYTHON`, `CUDA_VISIBLE_DEVICES`, `NUM_SEEDS`, `NUM_EPOCHS`, `SKIP_LL
 | Loss type (CE vs KL) | `scripts/ablation_loss.sh` | {ERNIE, Llama-8B, Llama-1B} × 3 datasets × K=100 |
 | Embedding source (GTE) | `scripts/ablation_embedding.sh` | {ERNIE, Llama-8B, Llama-1B} × 3 datasets × 4 K |
 | BoW target (no DSL) | `scripts/ablation_bow_target.sh` | {ERNIE, Llama-8B, Llama-1B} × 3 datasets × 4 K |
-| Vocabulary size \|V\| | `scripts/ablation_vocab_size.sh` | reprocess 20news/ERNIE at \|V\|∈{500,1000,2000,4000}, then generative + 8 baselines → `results/vocab_<V>/` |
-| Prompt sensitivity | `scripts/ablation_prompt_sensitivity.sh` | reprocess 20news/ERNIE with 5 instruction variants, then {generative, zeroshot, prodlda, fastopic} at K=50 → `results/prompt_<variant>/` |
+| Vocabulary size \|V\| | `scripts/ablation_vocab_size.sh` | reprocess 20news/ERNIE at \|V\|∈{500,1000,2000,4000}, then dsl + 8 baselines → `results/vocab_<V>/` |
+| Prompt sensitivity | `scripts/ablation_prompt_sensitivity.sh` | reprocess 20news/ERNIE with 5 instruction variants, then {dsl, zeroshot, prodlda, fastopic} at K=50 → `results/prompt_<variant>/` |
 
 The vocab-size and prompt ablations vary the *data* (not a CLI flag), so they write under
 `results/vocab_<V>/` and `results/prompt_<variant>/` to avoid colliding with main runs.
@@ -144,7 +148,7 @@ The vocab-size and prompt ablations vary the *data* (not a CLI flag), so they wr
 **A single configuration:**
 ```bash
 scripts/run_dsl.sh <model> <lm> <dataset> <K> [extra dsl-train flags...]
-scripts/run_dsl.sh generative ERNIE-4.5-0.3B-PT 20_newsgroups 50     # one main-table cell
+scripts/run_dsl.sh dsl ERNIE-4.5-0.3B-PT 20_newsgroups 50     # one main-table cell
 ```
 
 **Inspect results:** `dsl-summarize results [--dataset 20_newsgroups]`.
@@ -154,6 +158,18 @@ LM forward pass at train time), so each run (5 seeds × 100 epochs) is minutes; 
 and the Palmetto coherence dominate wall-clock. The full matrix is hundreds of runs —
 roughly a day or two end-to-end. Use `SKIP_LLM=1` to avoid OpenAI calls.
 
+**Determinism.** Each seed is fixed via `set_seed()` (`torch`/`cuda`/`numpy`/`random` plus
+`cudnn.deterministic=True`, `cudnn.enabled=False`); baselines such as `lda`/`zeroshot` also
+take `random_state=seed`. Because training reads pre-computed LM features, a given run is
+reproducible on the **same** GPU/driver. Two caveats: (1) *regenerating* the datasets
+(`process_all.sh`) runs the LM in bf16, which is not bit-deterministic — download the
+published HF datasets for exact numbers (see §2), or pass `dsl-process --deterministic`
+(float32 + deterministic kernels) to regenerate reproducible targets at some speed cost;
+(2) the I-RBO metric re-encodes topic
+words with a per-call index map (`evaluation/diversity.py:get_word2index`) — this is
+deterministic for the metric (RBO is invariant under a consistent relabeling), so it is not
+a bug and should not be "fixed" with `sorted()`.
+
 ## 5. Repository structure
 
 ```
@@ -161,25 +177,26 @@ src/dsl_topic/
   cli/            process_dataset.py · train.py · retrieval.py · summarize.py   (entry points)
   models/
     dsl/          prodlda.py · ecrtm.py · fastopic.py · etm.py   ← the authors' DSL models
-    _vendored/    octis/ · topmost/ · fastopic/                  ← third-party baselines (intact)
+    baselines/    octis/ · topmost/ · fastopic/                  ← third-party baselines
   data/           loaders.py · preprocessing.py · tokenization.py · {ctm,octis}_dataset.py
   evaluation/     metrics.py · coherence.py (C_V) · diversity.py (I-RBO) · retrieval.py · rbo.py
   prompts/        renderer.py + templates/   (Jinja prompts: DSL targets + LLM rating)
   paths.py        data-directory resolution (override with DSL_TOPIC_DATA_DIR)
   settings.py     optional API keys (.env)
-configs/          per-model hyperparameter YAML
 scripts/          experiment launch scripts (see §4)
-tests/            smoke tests
+tests/            smoke + numeric-equivalence tests
 ```
 
-The model registry keys passed to `--model` (`generative`, `generative_ecrtm`,
-`generative_fastopic`, `generative_etm`, and the baselines) match the paper; only the
-internal module/class layout is reorganized.
+The model registry keys passed to `--model` (`dsl`, `dsl_ecrtm`,
+`dsl_fastopic`, `dsl_etm`, and the baselines) match the paper; only the
+internal module/class layout is reorganized. They are dispatched through
+`dsl_topic/cli/_model_builders.py:MODEL_BUILDERS`, and the authoritative default
+hyperparameters live in the `dsl-train` argparse (`dsl_topic/cli/train.py`).
 
 ## 6. Citation
 
 ```bibtex
-@InProceedings{li2026dsltopic,
+@inproceedings{li2026dsltopic,
   title = 	 {{DSL-Topic}: Improving Topic Modeling by Distilling Soft Labels from Language Models},
   author =       {Li, Raymond and Abaskohi, Amirhossein and Li, Chuyuan and Murray, Gabriel and Carenini, Giuseppe},
   booktitle = 	 {Proceedings of the 43rd International Conference on Machine Learning},
@@ -199,7 +216,8 @@ filled in once the proceedings are published._
 
 ## 7. Acknowledgements
 
-The baseline implementations under `src/dsl_topic/models/_vendored/` adapt
+The baselines under `src/dsl_topic/models/baselines/` adapt
 [OCTIS](https://github.com/MIND-Lab/OCTIS) (ProdLDA, CombinedTM, ZeroShotTM, ETM, LDA),
 [TopMost](https://github.com/BobXWu/TopMost) (ECRTM), and
-[FASTopic](https://github.com/BobXWu/FASTopic). Released under the MIT License.
+[FASTopic](https://github.com/BobXWu/FASTopic) — adapted to the local namespace and
+trimmed to what the paper uses. Please cite those works if you use the baselines.

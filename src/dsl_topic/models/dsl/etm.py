@@ -1,12 +1,13 @@
-"""Generative ETM: ETM variant that uses LLM hidden states as encoder input
+"""DSL ETM: ETM variant that uses LLM hidden states as encoder input
 and KL divergence against LLM next-token logits as the reconstruction target."""
 
-import math
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
+from dsl_topic.models.dsl._objective import (
+    topk_target, distillation_loss, extract_topics, theta_inference,
+)
 
 
 class DSLETMModel(nn.Module):
@@ -87,20 +88,13 @@ class DSLETMModel(nn.Module):
         beta = self.get_beta()
         student_probs = F.softmax(torch.mm(theta, beta), dim=-1)
 
-        k = math.ceil(self.sparsity_ratio * teacher_logits.size(1))
-        topk_indices = torch.topk(teacher_logits, k=k, dim=1)[1]
-        mask = torch.zeros_like(teacher_logits)
-        mask.scatter_(1, topk_indices, 1.0)
-        masked_logits = teacher_logits * mask
-
-        if self.loss_type == 'CE':
-            rl = -torch.sum(masked_logits * torch.log(student_probs + 1e-10), dim=1)
-        elif self.loss_type == 'KL':
-            teacher_probs = torch.softmax(masked_logits / self.temperature, dim=-1).clamp_min(1e-9)
-            student_probs = student_probs.clamp_min(1e-9)
-            rl = torch.sum(teacher_probs * torch.log(teacher_probs / student_probs), dim=1)
-        else:
-            raise ValueError(f"Invalid loss type: {self.loss_type}")
+        masked_logits = topk_target(
+            teacher_logits, sparsity_ratio=self.sparsity_ratio, mask_mode="multiplicative",
+        )
+        rl = distillation_loss(
+            masked_logits, student_probs, loss_type=self.loss_type,
+            temperature=self.temperature, ce_softmax_teacher=False,
+        )
 
         loss = kl + self.loss_weight * rl.mean()
         return loss, kl, rl.mean()
@@ -163,32 +157,15 @@ class DSLETM:
 
     def get_info(self, idx2token=None):
         self.model.eval()
-        info = {}
         with torch.no_grad():
             beta = self.model.get_beta().cpu().numpy()
-
-        topics = []
-        for k in range(self.num_topics):
-            if np.isnan(beta[k]).any():
-                topics = None
-                break
-            top_indices = beta[k].argsort()[-self.top_words:][::-1]
-            if idx2token is not None:
-                topics.append([idx2token[i] for i in top_indices])
-            else:
-                topics.append(list(top_indices))
-
-        info['topic-word-matrix'] = beta
-        info['topics'] = topics
-        return info
+        return {
+            'topic-word-matrix': beta,
+            'topics': extract_topics(beta, self.top_words, idx2token=idx2token),
+        }
 
     def get_theta(self, ctm_dataset):
-        loader = DataLoader(ctm_dataset, batch_size=self.batch_size, shuffle=False)
-        all_theta = []
-        self.model.eval()
-        with torch.no_grad():
-            for batch in loader:
-                x = batch['x_embeddings'].to(self.device)
-                theta, _ = self.model.get_theta(x)
-                all_theta.append(theta.cpu().numpy())
-        return np.concatenate(all_theta, axis=0)
+        return theta_inference(
+            self.model, ctm_dataset, device=self.device, batch_size=self.batch_size,
+            theta_fn=lambda x: self.model.get_theta(x)[0],
+        )

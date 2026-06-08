@@ -1,0 +1,13 @@
+# Conda environment for DSL-Topic.
+#   conda env create -f environment.yml
+#   conda activate dsl-topic
+#   pip install -e .
+#
+# For the EXACT tested package versions (paper reproduction), instead run:
+#   pip install -r requirements.lock && pip install -e . --no-deps
+name: dsl-topic
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip

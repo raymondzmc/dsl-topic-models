@@ -2,6 +2,7 @@
 
 import os
 import json
+import random
 import argparse
 import time
 import tempfile
@@ -11,6 +12,31 @@ from datetime import datetime
 
 import numpy as np
 import torch
+
+_DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+
+
+def _enable_determinism(seed: int) -> None:
+    """Make LM target generation reproducible (at the cost of speed).
+
+    bf16 inference is not bit-deterministic, so regenerated targets drift from the
+    published ones (README §4). float32 + TF32 disabled + deterministic algorithms
+    + fixed seeds yields reproducible logits on the same GPU/driver. Pairs with
+    ``CUBLAS_WORKSPACE_CONFIG`` (set in ``main`` before any CUDA work).
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    try:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+    except Exception as exc:  # pragma: no cover - backend-dependent
+        print(f"[deterministic] torch.use_deterministic_algorithms unavailable: {exc}")
 from tqdm import tqdm
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
@@ -86,8 +112,15 @@ def process(args):
         with open(vocab_path, 'w') as f:
             json.dump(vocab, f)
 
-    # Load model
-    model_kwargs = dict(dtype=torch.bfloat16)
+    # Load model. bf16 (default) is fast but not bit-deterministic; --deterministic
+    # forces float32 + deterministic kernels for reproducible targets (README §4).
+    dtype = _DTYPES[args.dtype]
+    if args.deterministic:
+        dtype = torch.float32
+        _enable_determinism(args.seed)
+        print(f"[deterministic] float32 + TF32 off + deterministic algorithms, seed={args.seed} "
+              f"(reproducible targets, slower).")
+    model_kwargs = dict(dtype=dtype)
     try:
         import flash_attn  # noqa: F401
         model_kwargs["attn_implementation"] = "flash_attention_2"
@@ -326,10 +359,21 @@ def main():
     parser.add_argument('--embedding_method', type=str, default='last', choices=['last'])
     parser.add_argument('--save_name', type=str, default=None)
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--dtype', type=str, default='bfloat16', choices=list(_DTYPES),
+                        help="LM compute dtype (default bfloat16, as in the paper). "
+                             "Not bit-deterministic; use --deterministic for reproducible targets.")
+    parser.add_argument('--deterministic', action='store_true',
+                        help="Reproducible target generation: forces float32, disables TF32, "
+                             "enables deterministic algorithms, and seeds RNGs (slower).")
+    parser.add_argument('--seed', type=int, default=0, help="Seed used when --deterministic is set")
     parser.add_argument('--hf_private', action='store_true', help="Make HuggingFace dataset private")
     parser.add_argument('--no_upload', action='store_true', help="Skip uploading to HuggingFace Hub")
     args = parser.parse_args()
-    
+
+    # cuBLAS needs this set BEFORE the CUDA context is created for deterministic matmuls.
+    if args.deterministic:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
     print(f'Processing dataset "{args.dataset}"')
 
     if args.save_name is None:

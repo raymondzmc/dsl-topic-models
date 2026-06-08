@@ -19,16 +19,18 @@ authors = [
 keywords = ["topic modeling", "language models", "knowledge distillation", "neural topic models"]
 
 dependencies = [
-    # Core deep learning / data
-    "torch",
+    # Core deep learning / data.
+    # These are the loose, installable constraints; for the exact tested
+    # versions (Linux / CUDA 13 / Python 3.12) use `requirements.lock`.
+    "torch>=2.4",            # tested on 2.12.0; the CUDA build is platform-specific
     "torchvision",  # transitive dep of the vendored TopMost data loader
-    "transformers>=5.3.0",
+    "transformers>=5.3.0,<6",      # logits depend on this; tested on 5.9.0
     "datasets==3.0.2",
-    "sentence-transformers>=5.0.0",
+    "sentence-transformers>=5.0.0,<6",
     "sentencepiece==0.2.0",
     "huggingface_hub",
     "pyarrow>=14.0.0",
-    "numpy",
+    "numpy>=1.26,<2",        # numpy 2.x is untested with gensim 4.3.3 / this stack
     "scipy",
     "pandas",
     "scikit-learn",
@@ -49,7 +51,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 [project.urls]
 Homepage = "https://github.com/raymondzmc/dsl-topic-models"
@@ -67,3 +69,14 @@ where = ["src"]
 [tool.setuptools.package-data]
 # Ship the Jinja prompt/instruction templates inside the package
 dsl_topic = ["prompts/templates/**/*.jinja"]
+
+[tool.ruff]
+target-version = "py310"
+# The third-party baseline code is not linted.
+extend-exclude = ["src/dsl_topic/models/baselines"]
+
+[tool.ruff.lint]
+# Intentionally minimal CI gate: real errors only (syntax, undefined names,
+# literal-comparison bugs). Broaden (e.g. add "I", "F401", "E") as the code is
+# cleaned up.
+select = ["E9", "F63", "F7", "F82"]

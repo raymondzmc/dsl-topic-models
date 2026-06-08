@@ -1,4 +1,4 @@
-"""Generative FASTopic: FASTopic variant that uses LLM hidden states as document
+"""DSL FASTopic: FASTopic variant that uses LLM hidden states as document
 embeddings and a sparse top-k LLM distribution as the reconstruction target
 in the Dual Semantic-relation Reconstruction (DSR) loss.
 
@@ -8,14 +8,12 @@ The reconstruction target is built by zeroing out non-top-k logits and then
 applying softmax with temperature over the full vocabulary, producing a proper
 distribution that is naturally sparse."""
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from dsl_topic.models._vendored.fastopic._fastopic import fastopic
-from dsl_topic.models._vendored.fastopic._utils import get_top_words
-from dsl_topic.models._vendored.fastopic._model_utils import pairwise_euclidean_distance
+from dsl_topic.models.baselines.fastopic._fastopic import fastopic
+from dsl_topic.models.dsl._objective import topk_target, extract_topics, theta_inference
 
 
 class DSLFASTopicModel(fastopic):
@@ -49,9 +47,7 @@ class DSLFASTopicModel(fastopic):
         recon = torch.matmul(theta, beta)
 
         # Zero out non-top-k logits, then softmax with temperature over full vocab
-        topk_vals, topk_idx = torch.topk(teacher_logits, k=self.topk, dim=1)
-        masked_logits = torch.full_like(teacher_logits, float('-inf'))
-        masked_logits.scatter_(1, topk_idx, topk_vals)
+        masked_logits = topk_target(teacher_logits, k=self.topk, mask_mode="neg_inf")
         sparse_target = F.softmax(masked_logits / self.temperature, dim=-1)
 
         loss_DSR = -(sparse_target * (recon + self.epsilon).log()).sum(axis=1).mean()
@@ -123,34 +119,15 @@ class DSLFASTopic:
 
     def get_info(self, idx2token=None):
         self.model.eval()
-        info = {}
         with torch.no_grad():
             beta = self.model.get_beta().detach().cpu().numpy()
-
-        topics = []
-        for k in range(self.num_topics):
-            if np.isnan(beta[k]).any():
-                topics = None
-                break
-            top_indices = beta[k].argsort()[-self.top_words:][::-1]
-            if idx2token is not None:
-                topics.append([idx2token[i] for i in top_indices])
-            elif self.vocab is not None:
-                topics.append([self.vocab[i] for i in top_indices])
-            else:
-                topics.append(list(top_indices))
-
-        info['topic-word-matrix'] = beta
-        info['topics'] = topics
-        return info
+        return {
+            'topic-word-matrix': beta,
+            'topics': extract_topics(beta, self.top_words, idx2token=idx2token, vocab=self.vocab),
+        }
 
     def get_theta(self, ctm_dataset):
-        loader = DataLoader(ctm_dataset, batch_size=256, shuffle=False)
-        all_theta = []
-        self.model.eval()
-        with torch.no_grad():
-            for batch in loader:
-                x = batch['x_embeddings'].to(self.device)
-                theta = self.model.get_theta(x, self.train_doc_embeddings)
-                all_theta.append(theta.cpu().numpy())
-        return np.concatenate(all_theta, axis=0)
+        return theta_inference(
+            self.model, ctm_dataset, device=self.device, batch_size=256,
+            theta_fn=lambda x: self.model.get_theta(x, self.train_doc_embeddings),
+        )

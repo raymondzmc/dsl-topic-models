@@ -7,15 +7,34 @@ from openai import OpenAI, RateLimitError, APIError
 from collections import defaultdict
 from dsl_topic.settings import settings
 from dsl_topic.prompts import jinja_template_manager
-from dsl_topic.evaluation.abc import AbstractMetric
 from dsl_topic.evaluation.diversity import TopicDiversity, InvertedRBO
 from dsl_topic.evaluation.coherence import PalmettoCoherence
 from sklearn.metrics.cluster import contingency_matrix
 from sklearn import metrics
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# LLM topic-rating (gpt-4o) configuration — exposed so they are not magic numbers.
+LLM_RATING_MODEL = "gpt-4o"
+LLM_REQUEST_TIMEOUT = 60.0   # seconds per OpenAI call; prevents indefinite hangs
+LLM_RATING_MAX_WORKERS = 5   # concurrent topic ratings (kept low to avoid rate limits)
 
-def compute_llm_rating(topics: list[list[str]], model: str = "gpt-4o"):
+
+def compute_llm_rating(
+    topics: list[list[str]],
+    model: str = LLM_RATING_MODEL,
+    max_workers: int = LLM_RATING_MAX_WORKERS,
+) -> list[int]:
+    """Rate each topic's word-coherence with an OpenAI chat model (1-3 scale).
+
+    Each topic's top words are sent to ``model`` (default ``gpt-4o``) which
+    replies with a single integer in {1, 2, 3}. Calls run on a thread pool of
+    ``max_workers`` with a per-call timeout (``LLM_REQUEST_TIMEOUT``) and
+    exponential backoff on timeout/rate-limit/API errors; the temperature is
+    nudged up on malformed replies until a valid rating is returned. Requires
+    ``OPENAI_API_KEY`` (see :mod:`dsl_topic.settings`).
+
+    Returns the per-topic ratings in the **same order** as ``topics``.
+    """
     system_prompt = jinja_template_manager.render("topic_ratings_system.jinja")
     
     def render_messages(topic: list[str]):
@@ -31,7 +50,7 @@ def compute_llm_rating(topics: list[list[str]], model: str = "gpt-4o"):
 
     def get_single_topic_rating(topic):
         messages = render_messages(topic)
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(api_key=settings.openai_api_key, timeout=LLM_REQUEST_TIMEOUT)
         
         rating: Optional[int] = None
         temperature: float = 0.0
@@ -82,7 +101,7 @@ def compute_llm_rating(topics: list[list[str]], model: str = "gpt-4o"):
         return rating
 
     # Use ThreadPoolExecutor with reduced parallelism to avoid rate limits
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_topic = {executor.submit(get_single_topic_rating, topic): i for i, topic in enumerate(topics)}
         
@@ -96,7 +115,9 @@ def compute_llm_rating(topics: list[list[str]], model: str = "gpt-4o"):
     return topic_ratings
 
 
-def compute_purity_score(topic_document_matrix, labels ):
+def compute_purity_score(
+    topic_document_matrix: np.ndarray, labels
+) -> tuple[float, float, float]:
     """
     Compute cluster purity (and optionally inverse & harmonic purity)
     for a topic model given ground‑truth document labels.
@@ -153,8 +174,23 @@ def compute_purity_score(topic_document_matrix, labels ):
     return purity, inverse_purity, harmonic_purity
 
 
-def evaluate_topic_model(model_output, top_words=10, labels=None,
-                         skip_llm_rating=False):
+def evaluate_topic_model(model_output: dict, top_words: int = 10, labels=None,
+                         skip_llm_rating: bool = False) -> dict[str, float]:
+    """Evaluate a topic model's output and return a metric-name -> score dict.
+
+    Always computes ``topic_diversity`` and ``inverted_rbo``. Additionally:
+
+    - ``purity`` / ``inverse_purity`` / ``harmonic_purity`` / ``ari`` / ``mis``
+      only when ``labels`` is given and ``model_output`` has a non-None
+      ``topic-document-matrix``.
+    - ``cv_wiki`` (Palmetto Wikipedia C_V) only when the Palmetto JAR and
+      Wikipedia index exist on disk (see :mod:`dsl_topic.paths`); silently
+      omitted otherwise.
+    - ``llm_rating`` only when not ``skip_llm_rating`` and ``OPENAI_API_KEY``
+      is set.
+
+    The set of metrics computed is intentionally fixed here (not configurable).
+    """
     assert 'topics' in model_output, "model_output must contain 'topics'"
 
     evaluation_results = {}
@@ -228,7 +264,14 @@ def evaluate_topic_model(model_output, top_words=10, labels=None,
     return evaluation_results
 
 
-def compute_aggregate_results(results_path):
+def compute_aggregate_results(results_path: str) -> dict[str, float]:
+    """Average per-seed metrics across all ``seed_*/evaluation_results.json``.
+
+    Scans ``results_path`` for per-seed ``evaluation_results.json`` files and
+    returns the mean of each metric over the seeds that reported it. A legacy
+    ``[topics, results]`` list layout is unwrapped to its results dict for
+    backwards compatibility.
+    """
     aggregated_results = defaultdict(float)
     counts = defaultdict(int)
     for seed_dir in os.listdir(results_path):

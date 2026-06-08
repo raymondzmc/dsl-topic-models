@@ -3,14 +3,28 @@
 import spacy
 from typing import Optional
 
-# Load spacy model (with auto-download if needed)
-try:
-    nlp = spacy.load("en_core_web_lg")
-except OSError:
-    import subprocess
-    print("Installing spacy model 'en_core_web_lg'...")
-    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_lg"], check=True)
-    nlp = spacy.load("en_core_web_lg")
+_SPACY_MODEL = "en_core_web_lg"
+_nlp = None
+
+
+def _get_nlp():
+    """Lazily load (and cache) the spaCy model used for tokenization.
+
+    Loaded on first use — only ``dsl-process`` tokenizes raw text — so importing
+    this module (and therefore the rest of the package and the test suite) does
+    NOT require the large ``en_core_web_lg`` model or any network access.
+    """
+    global _nlp
+    if _nlp is None:
+        try:
+            _nlp = spacy.load(_SPACY_MODEL)
+        except OSError as exc:
+            raise OSError(
+                f"spaCy model '{_SPACY_MODEL}' is required for dataset processing "
+                f"(dsl-process). Install it once with:\n"
+                f"    python -m spacy download {_SPACY_MODEL}"
+            ) from exc
+    return _nlp
 
 
 def tokenize_document(
@@ -28,7 +42,7 @@ def tokenize_document(
     Returns:
         Tuple of (words, token_ids, offsets)
     """
-    doc = nlp(text)
+    doc = _get_nlp()(text)
     word_list, token_list, word_offsets = [], [], []
     
     for word in doc:
