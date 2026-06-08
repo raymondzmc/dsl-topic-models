@@ -1,7 +1,6 @@
-# DSL-Topic: Improving Topic Modeling by Distilling Soft Labels from Language Models
+# Improving Topic Modeling by Distilling Soft Labels from Language Models
 
-Official implementation of **"DSL-Topic: Improving Topic Modeling by Distilling Soft
-Labels from Language Models"** (ICML 2026).
+Official implementation of **"Improving Topic Modeling by Distilling Soft Labels from Language Models"** (ICML 2026).
 
 Neural topic models are usually trained to reconstruct a document's **Bag-of-Words
 (BoW)**, which ignores context and struggles with short or sparse text. **DSL**
@@ -197,7 +196,7 @@ hyperparameters live in the `dsl-train` argparse (`dsl_topic/cli/train.py`).
 
 ```bibtex
 @inproceedings{li2026dsltopic,
-  title = 	 {{DSL-Topic}: Improving Topic Modeling by Distilling Soft Labels from Language Models},
+  title = 	 {Improving Topic Modeling by Distilling Soft Labels from Language Models},
   author =       {Li, Raymond and Abaskohi, Amirhossein and Li, Chuyuan and Murray, Gabriel and Carenini, Giuseppe},
   booktitle = 	 {Proceedings of the 43rd International Conference on Machine Learning},
   pages = 	 {to appear},
