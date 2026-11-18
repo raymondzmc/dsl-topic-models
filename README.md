@@ -199,15 +199,16 @@ hyperparameters live in the `dsl-train` argparse (`dsl_topic/cli/train.py`).
   title = 	 {Improving Topic Modeling by Distilling Soft Labels from Language Models},
   author =       {Li, Raymond and Abaskohi, Amirhossein and Li, Chuyuan and Murray, Gabriel and Carenini, Giuseppe},
   booktitle = 	 {Proceedings of the 43rd International Conference on Machine Learning},
-  pages = 	 {to appear},
+  pages = 	 {65815--65836},
   year = 	 {2026},
-  editor = 	 {to be announced},
-  volume = 	 {to be announced},
+  volume = 	 {306},
   series = 	 {Proceedings of Machine Learning Research},
-  month = 	 {Jul},
+  month = 	 {06--11 Jul},
   publisher =    {PMLR},
-  url = 	 {https://proceedings.mlr.press/},
+  pdf = 	 {https://raw.githubusercontent.com/mlresearch/v306/main/assets/li26a/li26a.pdf},
+  url = 	 {https://proceedings.mlr.press/v306/li26a.html}
 }
+
 ```
 
 _Accepted at ICML 2026. The PMLR volume, page range, editors, and final PDF/URL will be
