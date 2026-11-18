@@ -211,9 +211,6 @@ hyperparameters live in the `dsl-train` argparse (`dsl_topic/cli/train.py`).
 
 ```
 
-_Accepted at ICML 2026. The PMLR volume, page range, editors, and final PDF/URL will be
-filled in once the proceedings are published._
-
 ## 7. Acknowledgements
 
 The baselines under `src/dsl_topic/models/baselines/` adapt
