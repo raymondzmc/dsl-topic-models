@@ -1,0 +1,67 @@
+{
+  "source": "Li et al., ICML 2026 (PMLR 306): Table 1 (Purity) and Table 2 (Precision@5). Means over K in {25,50,75,100} x 5 seeds.",
+  "baseline_label": "Best of the 8 baselines",
+  "method_label": "ProdLDA + DSL (ERNIE-4.5-0.3B, the smallest LM)",
+  "panels": [
+    {
+      "title": "Topic assignment",
+      "subtitle": "Purity",
+      "groups": [
+        {
+          "dataset": "20NewsGroups",
+          "best_baseline": "FASTopic",
+          "baseline": 0.416,
+          "dsl": 0.52,
+          "dsl_min": 0.52,
+          "dsl_max": 0.564
+        },
+        {
+          "dataset": "TweetTopic",
+          "best_baseline": "CombinedTM",
+          "baseline": 0.588,
+          "dsl": 0.781,
+          "dsl_min": 0.774,
+          "dsl_max": 0.787
+        },
+        {
+          "dataset": "StackOverflow",
+          "best_baseline": "ZeroShotTM",
+          "baseline": 0.307,
+          "dsl": 0.737,
+          "dsl_min": 0.698,
+          "dsl_max": 0.803
+        }
+      ]
+    },
+    {
+      "title": "Document retrieval",
+      "subtitle": "Precision@5",
+      "groups": [
+        {
+          "dataset": "20NewsGroups",
+          "best_baseline": "FASTopic",
+          "baseline": 0.421,
+          "dsl": 0.509,
+          "dsl_min": 0.509,
+          "dsl_max": 0.577
+        },
+        {
+          "dataset": "TweetTopic",
+          "best_baseline": "FASTopic",
+          "baseline": 0.811,
+          "dsl": 0.9,
+          "dsl_min": 0.9,
+          "dsl_max": 0.909
+        },
+        {
+          "dataset": "StackOverflow",
+          "best_baseline": "BERTopic",
+          "baseline": 0.306,
+          "dsl": 0.754,
+          "dsl_min": 0.752,
+          "dsl_max": 0.834
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t">
+<title id="t">DSL: Distilling Soft Labels from Language Models</title>
+<path d="M163,92 v-54 a4,4 0 0 1 4,-4 h4 a4,4 0 0 1 4,4 v54 z" fill="#2a78d6" fill-opacity="1"/>
+<path d="M181,92 v-38 a4,4 0 0 1 4,-4 h4 a4,4 0 0 1 4,4 v38 z" fill="#2a78d6" fill-opacity="0.82"/>
+<path d="M199,92 v-27 a4,4 0 0 1 4,-4 h4 a4,4 0 0 1 4,4 v27 z" fill="#2a78d6" fill-opacity="0.64"/>
+<path d="M217,92 v-17 a4,4 0 0 1 4,-4 h4 a4,4 0 0 1 4,4 v17 z" fill="#2a78d6" fill-opacity="0.48"/>
+<path d="M235,92 v-9 a4,4 0 0 1 4,-4 h4 a4,4 0 0 1 4,4 v9 z" fill="#2a78d6" fill-opacity="0.34"/>
+<line x1="157" y1="92.5" x2="251" y2="92.5" stroke="#59636e" stroke-width="1"/>
+<text x="268" y="92" font-size="68" font-weight="800" letter-spacing="1" fill="#1f2328">DSL</text>
+<text x="280" y="126" font-size="17" text-anchor="middle" fill="#59636e">Distilling Soft Labels from Language Models</text>
+</svg>

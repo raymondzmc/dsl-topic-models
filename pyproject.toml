@@ -29,7 +29,7 @@ dependencies = [
     "sentence-transformers>=5.0.0,<6",
     "sentencepiece==0.2.0",
     "huggingface_hub",
-    "pyarrow>=14.0.0",
+    "pyarrow>=14.0.0,<26",   # pyarrow 26 requires NumPy 2; tested on 24.0.0
     "numpy>=1.26,<2",        # numpy 2.x is untested with gensim 4.3.3 / this stack
     "scipy",
     "pandas",
@@ -55,7 +55,7 @@ dev = ["pytest", "ruff"]
 
 [project.urls]
 Homepage = "https://github.com/raymondzmc/dsl-topic-models"
-Paper = "https://github.com/raymondzmc/dsl-topic-models"
+Paper = "https://proceedings.mlr.press/v306/li26a.html"
 
 [project.scripts]
 dsl-process = "dsl_topic.cli.process_dataset:main"

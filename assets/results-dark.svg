@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 294" width="960" height="294" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">ProdLDA + DSL compared with the best of eight baselines</title>
+<desc id="d">Topic assignment (Purity): 20NewsGroups best baseline FASTopic .416, DSL .520; TweetTopic best baseline CombinedTM .588, DSL .781; StackOverflow best baseline ZeroShotTM .307, DSL .737. Document retrieval (Precision@5): 20NewsGroups best baseline FASTopic .421, DSL .509; TweetTopic best baseline FASTopic .811, DSL .900; StackOverflow best baseline BERTopic .306, DSL .754.</desc>
+<rect x="124" y="14" width="14" height="14" rx="3" fill="#77766f"/>
+<text x="145" y="26" font-size="14" fill="#f0f6fc">Best of the 8 baselines</text>
+<rect x="339" y="14" width="14" height="14" rx="3" fill="#3987e5"/>
+<text x="360" y="26" font-size="14" fill="#f0f6fc">ProdLDA + DSL (ERNIE-4.5-0.3B, the smallest LM)</text>
+<text x="124" y="68" font-size="16" font-weight="600" fill="#f0f6fc">Topic assignment<tspan dx="8" font-weight="400" fill="#9198a1">· Purity</tspan></text>
+<line x1="124.0" y1="84" x2="124.0" y2="260" stroke="#3d444d" stroke-width="1"/>
+<text x="124.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">0</text>
+<line x1="192.0" y1="84" x2="192.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="192.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.25</text>
+<line x1="260.0" y1="84" x2="260.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="260.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.50</text>
+<line x1="328.0" y1="84" x2="328.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="328.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.75</text>
+<line x1="396.0" y1="84" x2="396.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="396.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">1</text>
+<text x="114" y="116.0" font-size="14" text-anchor="end" fill="#f0f6fc">20NewsGroups</text>
+<path d="M124,92 h109.2 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-109.2 z" fill="#77766f"/>
+<text x="244.2" y="105.5" font-size="13" fill="#9198a1">.416 FASTopic</text>
+<path d="M124,112 h137.4 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-137.4 z" fill="#3987e5"/>
+<text x="272.4" y="125.5" font-size="13" font-weight="600" fill="#f0f6fc">.520</text>
+<text x="114" y="176.0" font-size="14" text-anchor="end" fill="#f0f6fc">TweetTopic</text>
+<path d="M124,152 h155.9 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-155.9 z" fill="#77766f"/>
+<text x="290.9" y="165.5" font-size="13" fill="#9198a1">.588 CombinedTM</text>
+<path d="M124,172 h208.4 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-208.4 z" fill="#3987e5"/>
+<text x="343.4" y="185.5" font-size="13" font-weight="600" fill="#f0f6fc">.781</text>
+<text x="114" y="236.0" font-size="14" text-anchor="end" fill="#f0f6fc">StackOverflow</text>
+<path d="M124,212 h79.5 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-79.5 z" fill="#77766f"/>
+<text x="214.5" y="225.5" font-size="13" fill="#9198a1">.307 ZeroShotTM</text>
+<path d="M124,232 h196.5 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-196.5 z" fill="#3987e5"/>
+<text x="331.5" y="245.5" font-size="13" font-weight="600" fill="#f0f6fc">.737</text>
+<text x="619" y="68" font-size="16" font-weight="600" fill="#f0f6fc">Document retrieval<tspan dx="8" font-weight="400" fill="#9198a1">· Precision@5</tspan></text>
+<line x1="619.0" y1="84" x2="619.0" y2="260" stroke="#3d444d" stroke-width="1"/>
+<text x="619.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">0</text>
+<line x1="687.0" y1="84" x2="687.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="687.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.25</text>
+<line x1="755.0" y1="84" x2="755.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="755.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.50</text>
+<line x1="823.0" y1="84" x2="823.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="823.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">.75</text>
+<line x1="891.0" y1="84" x2="891.0" y2="260" stroke="#2a313c" stroke-width="1"/>
+<text x="891.0" y="278" font-size="12" text-anchor="middle" fill="#9198a1">1</text>
+<text x="609" y="116.0" font-size="14" text-anchor="end" fill="#f0f6fc">20NewsGroups</text>
+<path d="M619,92 h110.5 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-110.5 z" fill="#77766f"/>
+<text x="740.5" y="105.5" font-size="13" fill="#9198a1">.421 FASTopic</text>
+<path d="M619,112 h134.4 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-134.4 z" fill="#3987e5"/>
+<text x="764.4" y="125.5" font-size="13" font-weight="600" fill="#f0f6fc">.509</text>
+<text x="609" y="176.0" font-size="14" text-anchor="end" fill="#f0f6fc">TweetTopic</text>
+<path d="M619,152 h216.6 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-216.6 z" fill="#77766f"/>
+<text x="846.6" y="165.5" font-size="13" fill="#9198a1">.811 FASTopic</text>
+<path d="M619,172 h240.8 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-240.8 z" fill="#3987e5"/>
+<text x="870.8" y="185.5" font-size="13" font-weight="600" fill="#f0f6fc">.900</text>
+<text x="609" y="236.0" font-size="14" text-anchor="end" fill="#f0f6fc">StackOverflow</text>
+<path d="M619,212 h79.2 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-79.2 z" fill="#77766f"/>
+<text x="709.2" y="225.5" font-size="13" fill="#9198a1">.306 BERTopic</text>
+<path d="M619,232 h201.1 a4,4 0 0 1 4,4 v10 a4,4 0 0 1 -4,4 h-201.1 z" fill="#3987e5"/>
+<text x="831.1" y="245.5" font-size="13" font-weight="600" fill="#f0f6fc">.754</text>
+</svg>
