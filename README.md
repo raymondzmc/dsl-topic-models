@@ -44,9 +44,9 @@ University of British Columbia
 
 ## 🔥 News
 
+- **[2026-11]** DSL is being added to three topic-modeling libraries: a pull request for a `DSL` model in [Turftopic](https://github.com/x-tabdeveloping/turftopic/pull/141), a pull request for DSL training of ProdLDA, DecTM, ECRTM and CombinedTM in [TopMost](https://github.com/bobxwu/TopMost/pull/21), and a proposal for a soft-label topic representation in [BERTopic](https://github.com/MaartenGr/BERTopic/issues/2560). All three are open and under review.
 - **[2026-09]** The paper is published in the ICML 2026 proceedings ([PMLR 306](https://proceedings.mlr.press/v306/li26a.html)).
 - **[2026-07]** DSL is presented at **ICML 2026** in Seoul.
-- **[2026-06]** Code release, with the 15 processed datasets used in the main experiments and one script per table.
 
 ## 💡 Overview
 
